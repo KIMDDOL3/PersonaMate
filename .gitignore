@@ -1,0 +1,10 @@
+# Python 가상환경
+.venv/
+__pycache__/
+*.pyc
+
+# OS 파일
+.DS_Store
+
+# 기타 불필요한 파일
+*.log
