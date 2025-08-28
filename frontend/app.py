@@ -80,7 +80,9 @@ def collect_from_platforms(do_yt, do_ig, do_x):
     if do_yt:
         try:
             res=requests.get(f"{BACKEND}/youtube/subscriptions", timeout=30).json()
-            data['youtube']=[s['name'] for s in res.get('subscriptions',[])]
+            # 유튜브는 name만 추출 (URL 완전히 제거)
+            # 유튜브는 name만 추출 (URL 완전히 제거, 괄호 포함 문자열도 제거)
+            data['youtube']=[(s.get('name') or '').split('(')[0].strip() for s in res.get('subscriptions',[]) if s.get('name')]
         except Exception as e: data['youtube_error']=str(e)
     if do_ig:
         try:
@@ -113,20 +115,38 @@ def recommend_pipeline(yt, sns, mbti, use_openai=True, top_k=6):
     }
     
     if use_openai:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3, max_tokens=2000, request_timeout=60)
         prompt = ChatPromptTemplate.from_template("""
-        당신은 추천 시스템입니다.
-        아래 사용자의 실제 데이터(JSON)와 MBTI를 기반으로 **새로운 사이트 15개**를 추천하세요.
+        당신은 심층 리서치 기반 추천 시스템입니다.
+        아래 사용자의 실제 데이터(JSON)와 MBTI를 기반으로 **유튜브 채널과 웹사이트를 추천하세요.**
+        - 반드시 유튜브 채널은 **구독자 10만 명 이상**인 채널만 포함할 것
+        - 반드시 유튜브 채널은 **정확히 12개** 포함할 것
+        - 유튜브 채널 URL은 반드시 실제 채널 URL 형식("https://www.youtube.com/@채널명" 또는 "https://www.youtube.com/channel/채널ID")으로 제공할 것
+        - 웹사이트 추천은 **정확히 3개만** 포함할 것
+        - 나머지는 모두 유튜브 채널로 채울 것
+        - 충분히 깊이 있게 생각하고, 단계별로 논리적으로 추론한 뒤 결과를 제시할 것
+        - 단순 나열이 아니라, 사용자의 관심사와 MBTI 특성을 심층적으로 분석하여 추천할 것
+        - 분석 기법을 고도화하여, 단순 태그 매칭이 아니라 주제적 연관성, 트렌드, 심리적 성향까지 고려할 것
+        - 충분히 깊이 있게 생각하고, 단계별로 논리적으로 추론한 뒤 결과를 제시할 것
+        - 단순 나열이 아니라, 사용자의 관심사와 MBTI 특성을 심층적으로 분석하여 추천할 것
         - 유튜브 채널과 웹사이트를 혼합해서 추천할 것
         - 한국 채널/사이트와 영어권 채널/사이트를 함께 추천할 것
         - 최소 5개 이상은 한국 채널/사이트여야 함
         - 반드시 JSON 배열 형식으로 출력할 것
         - 각 항목은 {{ "name": ..., "platform": "youtube" 또는 "web", "url": ..., "tags": "...", "score": 0.0~1.0, "reason": ... }} 형식일 것
         - 추천 사유는 반드시 한국어로 작성할 것
+        - 추천 사유는 짧게 요약하지 말고, 심층 리서치 기반으로 3~4문장 이상 충분히 길게 작성할 것
         - 비어 있는 값 없이 모든 필드를 채울 것
         - **사용자가 이미 구독한 채널/사이트는 절대 추천하지 말 것**
         - 즉, 아래 JSON의 youtube_subscriptions와 sns_keywords는 참고용 데이터이며, 추천 결과에 포함되면 안 됨
-
+        - 유튜브 채널 URL은 반드시 실제 채널 URL 형식("https://www.youtube.com/@채널명" 또는 "https://www.youtube.com/channel/채널ID")으로 제공할 것
+        - "https://youtube.com/..." 같은 축약형이나 잘못된 주소는 사용하지 말 것
+        - 추천하는 유튜브 채널은 반드시 구독자 수가 10만 명 이상인 채널만 포함할 것
+        - URL은 반드시 실제로 접속 가능한 유효한 링크여야 하며, 존재하지 않는 채널 주소를 생성하지 말 것
+        - 유튜브 채널 URL은 반드시 실제 채널 URL 형식("https://www.youtube.com/@채널명" 또는 "https://www.youtube.com/channel/채널ID")으로 제공할 것
+        - "https://youtube.com/..." 같은 축약형이나 잘못된 주소는 사용하지 말 것
+        - 추천하는 유튜브 채널은 반드시 구독자 수가 10만 명 이상인 채널만 포함할 것
+        - URL은 반드시 실제로 접속 가능한 유효한 링크여야 하며, 존재하지 않는 채널 주소를 생성하지 말 것
         사용자 데이터(JSON):
         {user_profile}
         """)
@@ -134,14 +154,59 @@ def recommend_pipeline(yt, sns, mbti, use_openai=True, top_k=6):
         response = chain.invoke({"user_profile": json.dumps(user_profile, ensure_ascii=False)})
         try:
             content = response.content.strip()
+            # 코드 블록(````json ... ````) 제거 및 정리
             if content.startswith("```"):
-                content = content.strip("`")
-                if content.lower().startswith("json"):
-                    content = content[4:].strip()
-            data = json.loads(content)
-            return data[:top_k]
+                lines = content.splitlines()
+                # 첫 줄이 ```json 또는 ```JSON 인 경우 제거
+                if lines[0].lower().startswith("```json"):
+                    lines = lines[1:]
+                # 마지막 줄이 ``` 인 경우 제거
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
+            # JSON 문자열이 배열로 끝나지 않는 경우 보정
+            if not content.strip().endswith("]"):
+                last_bracket = content.rfind("]")
+                if last_bracket != -1:
+                    content = content[:last_bracket+1]
+            try:
+                data = json.loads(content)
+            except Exception as e:
+                # JSON 파싱 실패 시 안전하게 복구
+                import re
+                # JSON 객체 패턴만 추출
+                objs = re.findall(r'\{.*?\}', content, re.DOTALL)
+                try:
+                    data = [json.loads(o) for o in objs]
+                except:
+                    return [{"name":"추천 실패","platform":"error","url":"","tags":"","score":0.0,"reason":f"JSON 파싱 완전 실패: {str(e)}"}]
+            # 유효한 유튜브 채널 URL만 필터링 및 정규화
+            valid=[]
+            for c in data:
+                # 유튜브 URL은 반드시 실제 채널 URL 형식만 허용
+                url=c.get("url","")
+                if c.get("platform")=="youtube":
+                    if not (url.startswith("https://www.youtube.com/@") or url.startswith("https://www.youtube.com/channel/")):
+                        continue
+                if c.get("score",0)<0.7:  # 점수 0.7 이상만 추천
+                    continue
+                c["url"]=url
+                valid.append(c)
+            # 화면 표시용: 최소한 name/url/reason 필드가 있는 것만 반환
+            cleaned=[]
+            for c in valid[:20]:
+                if c.get("name") and c.get("reason"):
+                    cleaned.append({
+                        "name": c.get("name",""),
+                        "platform": c.get("platform",""),
+                        "url": c.get("url",""),
+                        "tags": c.get("tags",""),
+                        "score": c.get("score",0.0),
+                        "reason": c.get("reason","")
+                    })
+            return cleaned
         except Exception as e:
-            return [{"name":"추천 실패","platform":"error","url":"","tags":"","score":0.0,"reason":f"파싱 실패: {str(e)}\n원본: {response.content}"}]
+            return [{"name":"추천 실패","platform":"error","url":"","tags":"","score":0.0,"reason":f"파싱 실패: {str(e)}"}]
     else:
         return []
 
@@ -220,7 +285,10 @@ with gr.Blocks(title='PersonaMate Pro (OAuth + Advanced UI)') as demo:
     btn_x.click(fn=open_x, inputs=[], outputs=[])
     def _fetch(do_yt,do_ig,do_x):
         d=collect_from_platforms(do_yt,do_ig,do_x)
-        return d, '\n'.join((d.get('youtube') or [])[:10]), '\n'.join((d.get('instagram') or [])[:10]), '\n'.join((d.get('x') or [])[:10])
+        # 유튜브는 URL 제거 후 이름만 표시
+        yt_names=[s.split("(")[0].strip() for s in (d.get('youtube') or [])]
+        # 입력창으로 넘길 때도 URL 제거된 이름만 전달
+        return d, '\n'.join(yt_names), '\n'.join((d.get('instagram') or [])[:10]), '\n'.join((d.get('x') or [])[:10])
     fetch_btn.click(_fetch, [yt_chk,ig_chk,x_chk], [collected, yt_text, sns_text, sns_text])
     raw=gr.State([])
     def _run(yt,sns,mbti,use_openai):
