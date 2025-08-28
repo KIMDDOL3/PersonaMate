@@ -1,0 +1,10 @@
+gradio==4.44.0
+plotly>=5.23.0
+openai>=1.40.0
+reportlab>=4.2.2
+pandas>=2.2.2
+requests>=2.32.3
+sentence-transformers==2.7.0
+faiss-cpu==1.8.0.post1
+scikit-learn==1.5.1
+python-dotenv==1.0.1

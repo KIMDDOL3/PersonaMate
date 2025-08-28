@@ -1,0 +1,114 @@
+[
+  {
+    "name": "TED",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/user/TEDtalksDirector",
+    "tags": "자기계발, 강연, 혁신",
+    "score": 0.9,
+    "reason": "다양한 주제의 강연을 통해 자기계발과 지식 확장을 도와줍니다."
+  },
+  {
+    "name": "지식의 정원",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/c/KnowledgeGarden",
+    "tags": "자기계발, 독서, 교육",
+    "score": 0.85,
+    "reason": "독서와 지식에 관한 유익한 콘텐츠를 제공합니다."
+  },
+  {
+    "name": "K-MOOC",
+    "platform": "web",
+    "url": "https://www.kmooc.kr",
+    "tags": "온라인 강의, 교육",
+    "score": 0.88,
+    "reason": "다양한 분야의 온라인 강의를 제공하여 자기계발에 큰 도움이 됩니다."
+  },
+  {
+    "name": "The School of Life",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/user/schooloflifechannel",
+    "tags": "자기계발, 심리학, 철학",
+    "score": 0.82,
+    "reason": "삶에 대한 다양한 통찰을 제공하여 깊이 있는 사고를 유도합니다."
+  },
+  {
+    "name": "바른생활",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/c/BarunLife",
+    "tags": "운동, 건강, 라이프스타일",
+    "score": 0.8,
+    "reason": "건강한 생활 습관을 위한 운동 및 라이프스타일 팁을 제공합니다."
+  },
+  {
+    "name": "Coursera",
+    "platform": "web",
+    "url": "https://www.coursera.org",
+    "tags": "온라인 강의, 교육, 자기계발",
+    "score": 0.9,
+    "reason": "전 세계의 대학에서 제공하는 다양한 강의를 통해 자기계발이 가능합니다."
+  },
+  {
+    "name": "운동과학",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/c/ExerciseScience",
+    "tags": "운동, 건강, 과학",
+    "score": 0.75,
+    "reason": "운동과 관련된 과학적 지식을 공유하여 효과적인 운동 방법을 배울 수 있습니다."
+  },
+  {
+    "name": "Mindvalley",
+    "platform": "web",
+    "url": "https://www.mindvalley.com",
+    "tags": "자기계발, 온라인 코스",
+    "score": 0.85,
+    "reason": "다양한 자기계발 프로그램을 제공하여 개인의 성장에 도움을 줍니다."
+  },
+  {
+    "name": "영어로 읽는 한국",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/c/ReadingKoreaInEnglish",
+    "tags": "독서, 교육, 문화",
+    "score": 0.78,
+    "reason": "한국 문화를 영어로 배우며 독서하는 재미를 느낄 수 있습니다."
+  },
+  {
+    "name": "The Minimalists",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/user/joshandryan",
+    "tags": "자기계발, 미니멀리즘",
+    "score": 0.76,
+    "reason": "미니멀리즘을 통해 삶의 질을 높이는 방법에 대한 통찰을 제공합니다."
+  },
+  {
+    "name": "운동하는 뇌",
+    "platform": "web",
+    "url": "https://www.brainexercise.com",
+    "tags": "운동, 뇌, 건강",
+    "score": 0.7,
+    "reason": "운동과 뇌 건강의 관계에 대한 다양한 정보를 제공합니다."
+  },
+  {
+    "name": "Harvard Business Review",
+    "platform": "web",
+    "url": "https://hbr.org",
+    "tags": "비즈니스, 자기계발, 경영",
+    "score": 0.88,
+    "reason": "비즈니스 관련 지식과 자기계발에 유용한 콘텐츠를 제공합니다."
+  },
+  {
+    "name": "정리의 기술",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/c/OrganizingSkills",
+    "tags": "자기계발, 정리, 라이프스타일",
+    "score": 0.74,
+    "reason": "효율적인 정리 방법과 라이프스타일 개선 팁을 제공합니다."
+  },
+  {
+    "name": "Skillshare",
+    "platform": "web",
+    "url": "https://www.skillshare.com",
+    "tags": "온라인 강의, 자기계발",
+    "score": 0.9,
+    "reason": "다양한 기술과 자기계발 관련 강의를 통해 새로운 지식을 배울 수 있습니다."
+  }
+]
