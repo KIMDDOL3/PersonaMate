@@ -12,9 +12,9 @@ with gr.Blocks(title='PersonaMate Pro (OAuth + Simplified UI)') as demo:
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown('### 1) OAuth 로그인')
-            btn_google=gr.Button('Google (YouTube) 로그인 열기')
-            btn_instagram=gr.Button('Instagram 로그인 열기')
-            btn_x=gr.Button('X (Twitter) 로그인 열기')
+            google_link=gr.Link("Google (YouTube) 로그인 열기", f"{BACKEND}/oauth/google/start")
+            instagram_link=gr.Link("Instagram 로그인 열기", f"{BACKEND}/oauth/instagram/start")
+            x_link=gr.Link("X (Twitter) 로그인 열기", f"{BACKEND}/oauth/x/start")
         with gr.Column(scale=2):
             gr.Markdown('### 2) 자동 수집')
             yt_chk=gr.Checkbox(label='YouTube 구독 목록 사용', value=True)
@@ -35,14 +35,8 @@ with gr.Blocks(title='PersonaMate Pro (OAuth + Simplified UI)') as demo:
             gr.Markdown('### 4) 추천 결과')
             result_table=gr.Dataframe(headers=["채널 이름","사이트 주소"], row_count=10, col_count=2)
 
-    # 버튼 동작 연결
-    import webbrowser
-    def open_g(): webbrowser.open(f"{BACKEND}/oauth/google/start")
-    def open_i(): webbrowser.open(f"{BACKEND}/oauth/instagram/start")
-    def open_x(): webbrowser.open(f"{BACKEND}/oauth/x/start")
-    btn_google.click(fn=open_g, inputs=[], outputs=[])
-    btn_instagram.click(fn=open_i, inputs=[], outputs=[])
-    btn_x.click(fn=open_x, inputs=[], outputs=[])
+    # 버튼 동작 연결 제거 (Hugging Face에서는 webbrowser.open 사용 불가)
+    # 대신 gr.Link 컴포넌트로 대체
 
     def fetch_data_fn():
         try:
