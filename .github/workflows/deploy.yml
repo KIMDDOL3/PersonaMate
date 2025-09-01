@@ -23,5 +23,14 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          huggingface-cli login --token $HF_TOKEN
-          huggingface-cli upload . --repo-type=space --repo-id=KIMDDOL3/PersonaMate --token $HF_TOKEN
+          pip install huggingface_hub
+          python - <<EOF
+          from huggingface_hub import HfApi
+          api = HfApi()
+          api.upload_folder(
+              folder_path=".",
+              repo_id="KIMDDOL3/PersonaMate",
+              repo_type="space",
+              token="${HF_TOKEN}"
+          )
+          EOF
