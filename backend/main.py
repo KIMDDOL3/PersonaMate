@@ -1,140 +1,216 @@
 import os, time, json, httpx, secrets, base64, hashlib, sqlite3
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from urllib.parse import urlencode
 from itsdangerous import URLSafeSerializer
 from dotenv import load_dotenv
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from apscheduler.schedulers.background import BackgroundScheduler
+import smtplib, ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 load_dotenv()
-DB_PATH = os.path.join(os.path.dirname(__file__), "tokens.db")
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-conn.execute("CREATE TABLE IF NOT EXISTS tokens (provider TEXT PRIMARY KEY, data TEXT)")
-conn.commit()
+USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
+
+conn = None
+if USE_SQLITE:
+    DB_PATH = os.path.join(os.path.dirname(__file__), "tokens.db")
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("CREATE TABLE IF NOT EXISTS tokens (provider TEXT PRIMARY KEY, data TEXT)")
+    conn.execute("CREATE TABLE IF NOT EXISTS recommendations (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, data TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    conn.commit()
+
 def save_token(provider: str, data: dict):
+    if not conn:
+        return
     conn.execute("REPLACE INTO tokens (provider, data) VALUES (?,?)", (provider, json.dumps(data)))
     conn.commit()
+
 def load_token(provider: str):
+    if not conn:
+        return None
     row = conn.execute("SELECT data FROM tokens WHERE provider=?",(provider,)).fetchone()
     if not row: return None
     return json.loads(row[0])
+
+def save_recommendations(source: str, data: dict):
+    if not conn:
+        return
+    conn.execute("INSERT INTO recommendations (source, data) VALUES (?, ?)", (source, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
 
 SECRET_KEY = os.getenv("SECRET_KEY","changeme")
 SIGNER = URLSafeSerializer(SECRET_KEY)
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN","http://localhost:7860")
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'], allow_credentials=True)
-STORE = {}
-def set_state(data: dict) -> str:
-    state = secrets.token_urlsafe(16); STORE[state] = {'data':data,'ts':time.time()}; return state
-def pop_state(state: str):
-    return STORE.pop(state, None)
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID","")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET","")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI","http://localhost:8000/oauth/google/callback")
-GOOGLE_SCOPE = os.getenv("GOOGLE_SCOPE","https://www.googleapis.com/auth/youtube.readonly")
-@app.get('/oauth/google/start')
-def google_start():
-    state = set_state({'provider':'google'})
-    params = {'client_id':GOOGLE_CLIENT_ID,'redirect_uri':GOOGLE_REDIRECT_URI,'response_type':'code','scope':GOOGLE_SCOPE,'access_type':'offline','include_granted_scopes':'true','state':state,'prompt':'consent'}
-    return RedirectResponse('https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params))
-@app.get('/oauth/google/callback')
-async def google_callback(code: Optional[str]=None, state: Optional[str]=None, error: Optional[str]=None):
-    if error: raise HTTPException(400, error)
-    if not code or not state: raise HTTPException(400, 'missing code/state')
-    if not pop_state(state): raise HTTPException(400, 'invalid state')
-    async with httpx.AsyncClient(timeout=30) as client:
-        token_res = await client.post('https://oauth2.googleapis.com/token', data={'client_id':GOOGLE_CLIENT_ID,'client_secret':GOOGLE_CLIENT_SECRET,'code':code,'grant_type':'authorization_code','redirect_uri':GOOGLE_REDIRECT_URI})
-    tok = token_res.json(); save_token('google', tok)
-    payload = SIGNER.dumps({'provider':'google','ok':True})
-    return RedirectResponse(f"{FRONTEND_ORIGIN}/?google={payload}")
-@app.get('/youtube/subscriptions')
-async def youtube_subscriptions():
-    tok = load_token('google')
-    if not tok: raise HTTPException(400, 'no google token')
-    access = tok.get('access_token'); 
-    if not access: raise HTTPException(401, 'no access_token')
-    items=[]; url='https://www.googleapis.com/youtube/v3/subscriptions'; params={'part':'snippet','mine':'true','maxResults':50}; headers={'Authorization':f'Bearer {access}'}
-    async with httpx.AsyncClient(timeout=30) as client:
-        while True:
-            r = await client.get(url, params=params, headers=headers); j = r.json()
-            for it in j.get('items', []):
-                title = it['snippet']['title']; churl = 'https://www.youtube.com/channel/' + it['snippet']['resourceId']['channelId']
-                items.append({'name':title,'url':churl})
-            token = j.get('nextPageToken'); 
-            if not token: break
-            params['pageToken'] = token
-    return {'subscriptions': items}
+class RecommendationRequest(BaseModel):
+    youtube_subscriptions: List[str] = []
+    sns_keywords: List[str] = []
+    mbti: Optional[str] = None
 
-FB_APP_ID = os.getenv('FB_APP_ID','')
-FB_APP_SECRET = os.getenv('FB_APP_SECRET','')
-IG_REDIRECT_URI = os.getenv('IG_REDIRECT_URI','http://localhost:8000/oauth/instagram/callback')
-IG_SCOPE = os.getenv('IG_SCOPE','instagram_basic')
-@app.get('/oauth/instagram/start')
-def ig_start():
-    state = set_state({'provider':'instagram'})
-    params = {'client_id':FB_APP_ID,'redirect_uri':IG_REDIRECT_URI,'response_type':'code','scope':IG_SCOPE,'state':state}
-    return RedirectResponse('https://www.facebook.com/v18.0/dialog/oauth?' + urlencode(params))
-@app.get('/oauth/instagram/callback')
-async def ig_callback(code: Optional[str]=None, state: Optional[str]=None, error: Optional[str]=None):
-    if error: raise HTTPException(400, error)
-    if not code or not state: raise HTTPException(400, 'missing code/state')
-    if not pop_state(state): raise HTTPException(400, 'invalid state')
-    async with httpx.AsyncClient(timeout=30) as client:
-        token_res = await client.get('https://graph.facebook.com/v18.0/oauth/access_token', params={'client_id':FB_APP_ID,'client_secret':FB_APP_SECRET,'redirect_uri':IG_REDIRECT_URI,'code':code})
-    tok = token_res.json(); save_token('instagram', tok)
-    payload = SIGNER.dumps({'provider':'instagram','ok':True})
-    return RedirectResponse(f"{FRONTEND_ORIGIN}/?instagram={payload}")
-@app.get('/instagram/media')
-async def ig_media():
-    tok = load_token('instagram')
-    if not tok: raise HTTPException(400, 'no instagram token')
-    access = tok.get('access_token')
-    fields='id,caption,media_type,media_url,thumbnail_url,permalink,timestamp'
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get('https://graph.instagram.com/me/media', params={'fields':fields,'access_token':access})
-    return r.json()
 
-X_CLIENT_ID = os.getenv('X_CLIENT_ID','')
-X_CLIENT_SECRET = os.getenv('X_CLIENT_SECRET','')
-X_REDIRECT_URI = os.getenv('X_REDIRECT_URI','http://localhost:8000/oauth/x/callback')
-X_SCOPE = os.getenv('X_SCOPE','tweet.read users.read follows.read like.read offline.access')
-def make_challenge():
-    import base64, hashlib, secrets
-    cv = secrets.token_urlsafe(64)
-    cc = base64.urlsafe_b64encode(hashlib.sha256(cv.encode()).digest()).rstrip(b'=').decode()
-    return cv, cc
-@app.get('/oauth/x/start')
-def x_start():
-    cv, cc = make_challenge()
-    state = set_state({'provider':'x','code_verifier':cv})
-    params = {'response_type':'code','client_id':X_CLIENT_ID,'redirect_uri':X_REDIRECT_URI,'scope':X_SCOPE,'state':state,'code_challenge':cc,'code_challenge_method':'S256'}
-    return RedirectResponse('https://twitter.com/i/oauth2/authorize?' + urlencode(params))
-@app.get('/oauth/x/callback')
-async def x_callback(code: Optional[str]=None, state: Optional[str]=None, error: Optional[str]=None):
-    if error: raise HTTPException(400, error)
-    if not code or not state: raise HTTPException(400, 'missing code/state')
-    st = pop_state(state)
-    if not st: raise HTTPException(400, 'invalid state')
-    cv = st['data']['code_verifier']
-    async with httpx.AsyncClient(timeout=30) as client:
-        token_res = await client.post('https://api.twitter.com/2/oauth2/token', data={'grant_type':'authorization_code','code':code,'redirect_uri':X_REDIRECT_URI,'code_verifier':cv,'client_id':X_CLIENT_ID}, headers={'Content-Type':'application/x-www-form-urlencoded'})
-    tok = token_res.json(); save_token('x', tok)
-    payload = SIGNER.dumps({'provider':'x','ok':True})
-    return RedirectResponse(f"{FRONTEND_ORIGIN}/?x={payload}")
-@app.get('/x/me_following')
-async def x_following():
-    tok = load_token('x')
-    if not tok: raise HTTPException(400, 'no x token')
-    access = tok.get('access_token'); headers={'Authorization':f'Bearer {access}'}
-    async with httpx.AsyncClient(timeout=30) as client:
-        me = (await client.get('https://api.twitter.com/2/users/me', headers=headers)).json()
-        uid = (me.get('data') or {}).get('id')
-        if not uid: return {'data':[]}
-        fol = (await client.get(f'https://api.twitter.com/2/users/{uid}/following', headers=headers, params={'max_results':200})).json()
-    return fol
-@app.get('/health')
-def health(): return {'ok': True}
+@app.get("/oauth/google/start")
+async def oauth_google_start():
+    client_id = os.getenv("GOOGLE_CLIENT_ID","")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI","http://localhost:9000/oauth/google/callback")
+    scope = "https://www.googleapis.com/auth/youtube.readonly"
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={client_id}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+        f"&scope={scope}"
+        f"&access_type=offline"
+        f"&prompt=consent"
+    )
+    return RedirectResponse(auth_url)
+
+
+@app.get("/oauth/google/callback")
+async def oauth_google_callback(code: str):
+    client_id = os.getenv("GOOGLE_CLIENT_ID","")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET","")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI","http://localhost:9000/oauth/google/callback")
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        "code": code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code"
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(token_url, data=data)
+        resp.raise_for_status()
+        token_data = resp.json()
+        save_token("google", token_data)
+        return {"status":"ok","token":token_data}
+
+
+@app.get("/oauth/instagram/start")
+async def oauth_instagram_start():
+    return RedirectResponse("https://www.instagram.com/oauth/authorize")
+
+
+@app.get("/fetch_data")
+async def fetch_data():
+    token = load_token("google")
+    if not token:
+        raise HTTPException(401,"Google OAuth token not found")
+    creds = token.get("access_token")
+    if not creds:
+        raise HTTPException(401,"Access token missing")
+
+    try:
+        subs = []
+        page_token = None
+        async with httpx.AsyncClient() as client:
+            while True:
+                params = {
+                    "part": "snippet",
+                    "mine": "true",
+                    "maxResults": 50
+                }
+                if page_token:
+                    params["pageToken"] = page_token
+                resp = await client.get(
+                    "https://www.googleapis.com/youtube/v3/subscriptions",
+                    params=params,
+                    headers={"Authorization": f"Bearer {creds}"}
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                subs.extend([item["snippet"]["title"] for item in data.get("items", [])])
+                page_token = data.get("nextPageToken")
+                if not page_token:
+                    break
+    except Exception as e:
+        raise HTTPException(500, f"YouTube API error: {e}")
+
+    return {
+        "youtube_subscriptions": subs,
+        "sns_keywords": [],
+        "mbti": "ENFP"
+    }
+
+
+@app.post("/youtube/recommendations")
+async def youtube_recommendations(request: RecommendationRequest):
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    if not GEMINI_API_KEY:
+        raise HTTPException(500, "GEMINI_API_KEY is not set")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # 프롬프트에 구독 채널과 MBTI를 반영
+    prompt = f"""
+    사용자의 구독 채널: {', '.join(request.youtube_subscriptions)}
+    사용자의 MBTI: {request.mbti}
+
+    위 정보를 바탕으로 사용자의 성향과 관심사에 맞는 새로운 유튜브 채널 10개를 추천해 주세요.
+    - 반드시 사용자의 구독 채널과 MBTI를 분석하여 새로운 채널을 제안해야 합니다.
+    - 한국 채널을 최소 3개 이상 포함해야 합니다.
+    - 추천 결과는 반드시 JSON 형식으로만 반환해야 합니다.
+    - 각 추천 항목은 채널 이름(name)과 채널 주소(url)만 포함해야 합니다.
+
+    {{
+      "recommendations": {{
+        "youtube": [
+          {{"name": "채널 이름", "url": "https://youtube.com/..."}}
+        ]
+      }}
+    }}
+    """
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.3,
+            "topK": 40,
+            "topP": 0.8,
+            "maxOutputTokens": 2048
+        }
+    }
+
+    async with httpx.AsyncClient(timeout=600) as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        raw = response.json()
+
+        text = raw.get("candidates",[{}])[0].get("content",{}).get("parts",[{}])[0].get("text","")
+        if not text:
+            return {"recommendations":{"youtube":[]}}
+
+        try:
+            # JSON 블록만 정규식으로 추출
+            import re
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            cleaned = match.group(0) if match else text
+            if cleaned.startswith("```"):
+                cleaned = cleaned.strip("`").replace("json","",1).strip()
+            result = json.loads(cleaned)
+        except Exception as e:
+            # fallback: 구독 채널과 MBTI 기반 기본 추천 생성 (10개 유튜브)
+            youtube_list = (request.youtube_subscriptions or ["기본채널"]) * 10
+            youtube_fallback = [
+                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}"} 
+                for i, ch in list(enumerate(youtube_list))[:10]
+            ]
+            result = {
+                "recommendations":{
+                    "youtube": youtube_fallback
+                },
+                "error":f"JSON 파싱 실패: {e}, 원본: {text}"
+            }
+
+        return result
