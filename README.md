@@ -1,3 +1,14 @@
+---
+title: PersonaMate
+emoji: 📺
+colorFrom: blue
+colorTo: pink
+sdk: gradio
+sdk_version: "4.0.0"
+app_file: app.py
+pinned: false
+---
+
 # PersonaMate Pro
 
 이 프로그램은 "내가 좋아하는 유튜브, 인스타그램, 트위터(X)" 정보를 모아서  
