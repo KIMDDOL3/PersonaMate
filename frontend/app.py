@@ -12,9 +12,9 @@ with gr.Blocks(title='PersonaMate Pro (OAuth + Simplified UI)') as demo:
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown('### 1) OAuth 로그인')
-            google_link=gr.Link("Google (YouTube) 로그인 열기", f"{BACKEND}/oauth/google/start")
-            instagram_link=gr.Link("Instagram 로그인 열기", f"{BACKEND}/oauth/instagram/start")
-            x_link=gr.Link("X (Twitter) 로그인 열기", f"{BACKEND}/oauth/x/start")
+            google_html = gr.HTML(f'<a href="{BACKEND}/oauth/google/start" target="_blank">Google (YouTube) 로그인 열기</a>')
+            instagram_html = gr.HTML(f'<a href="{BACKEND}/oauth/instagram/start" target="_blank">Instagram 로그인 열기</a>')
+            x_html = gr.HTML(f'<a href="{BACKEND}/oauth/x/start" target="_blank">X (Twitter) 로그인 열기</a>')
         with gr.Column(scale=2):
             gr.Markdown('### 2) 자동 수집')
             yt_chk=gr.Checkbox(label='YouTube 구독 목록 사용', value=True)
