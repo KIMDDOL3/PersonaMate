@@ -8,4 +8,4 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), "frontend"))
 
 # frontend.app 실행
-from app import *  # noqa
+from app import demo  # Hugging Face가 찾을 Gradio Blocks 객체
