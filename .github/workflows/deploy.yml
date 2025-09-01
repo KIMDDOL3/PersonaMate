@@ -29,7 +29,7 @@ jobs:
           api = HfApi()
           api.upload_folder(
               folder_path=".",
-              repo_id="KIMDDOL3/personamate",
+              repo_id="kimddol/PersonaMate",
               repo_type="space",
               token="${HF_TOKEN}"
           )
