@@ -44,7 +44,7 @@ jobs:
         run: npm install -g vercel
 
       - name: Deploy Backend to Vercel
-        run: vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel --yes --prod --token=${{ secrets.VERCEL_TOKEN }}
 
   deploy-container:
     runs-on: ubuntu-latest

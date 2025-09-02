@@ -4,12 +4,34 @@
     {
       "src": "backend/main.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "app.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
-      "src": "/.*",
+      "src": "/oauth/.*",
       "dest": "backend/main.py"
+    },
+    {
+      "src": "/fetch_data",
+      "dest": "backend/main.py"
+    },
+    {
+      "src": "/youtube/.*",
+      "dest": "backend/main.py"
+    },
+    {
+      "src": "/.*",
+      "dest": "app.py"
     }
-  ]
+  ],
+  "functions": {
+    "backend/*.py": {
+      "runtime": "@vercel/python",
+      "installCommand": "pip install fastapi uvicorn httpx python-dotenv"
+    }
+  }
 }
