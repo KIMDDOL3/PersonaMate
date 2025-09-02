@@ -2,10 +2,11 @@ import os, json, requests
 import gradio as gr
 from dotenv import load_dotenv
 
+from fastapi import FastAPI
 # 환경 변수 로드
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"), override=True)
 
-BACKEND = os.getenv('BACKEND_URL','http://localhost:9000')
+BACKEND = os.getenv('BACKEND_URL','https://your-vercel-backend.vercel.app')
 
 with gr.Blocks(title='PersonaMate Pro (OAuth + Simplified UI)') as demo:
     gr.Markdown('## PersonaMate Pro — OAuth 수집 + 추천 UI')
@@ -77,5 +78,10 @@ with gr.Blocks(title='PersonaMate Pro (OAuth + Simplified UI)') as demo:
 
     run_btn.click(_run, [yt_text, sns_text, mbti, use_openai], [result_table])
 
-if __name__=='__main__':
-    demo.launch()
+# Vercel 배포를 위해 FastAPI 앱을 생성하고 Gradio 앱을 마운트합니다.
+# Vercel은 이 'app' 객체를 찾아 서버리스 함수로 실행합니다.
+app = FastAPI()
+app = gr.mount_gradio_app(app, demo, path="/")
+
+# if __name__=='__main__':
+#     demo.launch()

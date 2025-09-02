@@ -1,11 +1,11 @@
-name: Deploy to Hugging Face Spaces
+name: Deploy to Hugging Face and Vercel
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  deploy:
+  deploy-huggingface:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -23,14 +23,25 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install huggingface_hub
           python - <<EOF
           from huggingface_hub import HfApi
           api = HfApi()
           api.upload_folder(
-              folder_path=".",
+              folder_path="frontend",
               repo_id="kimddol/PersonaMate",
               repo_type="space",
               token="${HF_TOKEN}"
           )
           EOF
+
+  deploy-vercel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy Backend to Vercel
+        run: vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
