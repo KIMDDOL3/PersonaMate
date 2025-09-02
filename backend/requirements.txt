@@ -9,3 +9,4 @@ google-api-python-client
 reportlab
 APScheduler
 yagmail
+psycopg2-binary
