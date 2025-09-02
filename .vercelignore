@@ -1,0 +1,7 @@
+# Ignore static recommendation files to reduce serverless bundle size
+frontend/**/*.html
+frontend/**/*.pdf
+frontend/**/*.json
+
+# Ignore node_modules or any other large directories (if present)
+node_modules/
