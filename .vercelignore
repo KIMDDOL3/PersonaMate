@@ -1,7 +1,11 @@
-# Ignore static recommendation files to reduce serverless bundle size
-frontend/**/*.html
-frontend/**/*.pdf
-frontend/**/*.json
+# Ignore frontend UI code and root app entrypoint to deploy only backend
+app.py
+frontend/
+
+# Ignore static recommendation files
+*.html
+*.pdf
+*.json
 
 # Ignore node_modules or any other large directories (if present)
 node_modules/
