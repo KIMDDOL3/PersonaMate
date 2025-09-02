@@ -1,15 +1,15 @@
-# Hugging Face Spaces entrypoint
-# 기존 frontend/app.py를 복사하여 루트에서 실행되도록 함
+import os, sys
+from fastapi import FastAPI
+import gradio as gr
 
-import sys
-import os
-
-# frontend 디렉토리를 모듈 경로에 추가
+# frontend 모듈 경로 추가
 sys.path.append(os.path.join(os.path.dirname(__file__), "frontend"))
 
-# frontend.app 실행
-import frontend.app as frontend_app
-demo = frontend_app.demo  # Hugging Face가 찾을 Gradio Blocks 객체
+# frontend/app.py에서 정의한 Gradio Blocks를 가져옵니다.
+from frontend.app import demo
 
-if __name__ == "__main__":
-    demo.launch()
+# FastAPI 앱 생성 후 Gradio Blocks를 "/ "에 마운트
+app = FastAPI()
+app = gr.mount_gradio_app(app, demo, path="/")
+
+# Hugging Face Spaces는 uvicorn을 내부적으로 실행하므로, 여기서는 따로 launch 하지 않습니다.
