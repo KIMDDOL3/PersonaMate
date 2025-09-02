@@ -1,4 +1,4 @@
-import os, time, json, httpx, secrets, base64, hashlib, sqlite3
+import os, time, json, httpx, secrets, base64, hashlib, psycopg2
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
@@ -22,31 +22,42 @@ load_dotenv()
 USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
 
 conn = None
-if USE_SQLITE:
-    DB_PATH = os.path.join(os.path.dirname(__file__), "tokens.db")
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.execute("CREATE TABLE IF NOT EXISTS tokens (provider TEXT PRIMARY KEY, data TEXT)")
-    conn.execute("CREATE TABLE IF NOT EXISTS recommendations (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, data TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS tokens (provider TEXT PRIMARY KEY, data TEXT)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recommendations (
+            id SERIAL PRIMARY KEY,
+            source TEXT,
+            data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
 
 def save_token(provider: str, data: dict):
     if not conn:
         return
-    conn.execute("REPLACE INTO tokens (provider, data) VALUES (?,?)", (provider, json.dumps(data)))
+    cur = conn.cursor()
+    cur.execute("INSERT INTO tokens (provider, data) VALUES (%s, %s) ON CONFLICT (provider) DO UPDATE SET data = EXCLUDED.data", (provider, json.dumps(data)))
     conn.commit()
 
 def load_token(provider: str):
     if not conn:
         return None
-    row = conn.execute("SELECT data FROM tokens WHERE provider=?",(provider,)).fetchone()
+    cur = conn.cursor()
+    cur.execute("SELECT data FROM tokens WHERE provider=%s", (provider,))
+    row = cur.fetchone()
     if not row: return None
     return json.loads(row[0])
 
 def save_recommendations(source: str, data: dict):
     if not conn:
         return
-    conn.execute("INSERT INTO recommendations (source, data) VALUES (?, ?)", (source, json.dumps(data, ensure_ascii=False)))
+    cur = conn.cursor()
+    cur.execute("INSERT INTO recommendations (source, data) VALUES (%s, %s)", (source, json.dumps(data, ensure_ascii=False)))
     conn.commit()
 
 SECRET_KEY = os.getenv("SECRET_KEY","changeme")
