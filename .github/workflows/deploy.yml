@@ -65,27 +65,3 @@ deploy-container:
         registry: docker.io
         username: ${{ vars.DOCKERHUB_USERNAME }}   # ← Actions Variables
         password: ${{ secrets.KIMDDOL }}           # ← Access Token (Secret)
-
-    # (선택) 자동 태그 메타데이터: 브랜치/태그/커밋SHA/기본브랜치 latest
-    - name: Docker metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: docker.io/${{ vars.DOCKERHUB_USERNAME }}/personamate
-        tags: |
-          type=ref,event=branch
-          type=ref,event=tag
-          type=sha,format=short
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: Dockerfile
-        push: true
-        platforms: linux/amd64   # arm64도 원하면 "linux/amd64,linux/arm64"
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
