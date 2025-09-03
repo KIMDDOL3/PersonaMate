@@ -7,7 +7,7 @@ import httpx # Import httpx for async client
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"), override=True)
 
 # Vercel 배포된 백엔드 URL (GitHub Space Secrets에 BACKEND_URL 설정)
-BACKEND = os.getenv('BACKEND_URL', 'https://personamate.vercel.app') # Updated to fixed production domain
+BACKEND = os.getenv('BACKEND_URL', 'https://personamate-kimddols-projects.vercel.app') # Updated to fixed production domain
 
 async def fetch_data_fn(): # Made async
     print("Fetching data endpoint called.")
@@ -30,22 +30,25 @@ async def run_recommendations(yt, sns, mbti): # Removed use_openai
         async with httpx.AsyncClient() as client: # Use async client
             res = await client.post(f"{BACKEND}/youtube/recommendations", json=payload, timeout=120)
             res.raise_for_status()
-            data = res.json().get("recommendations", {})
+            data = res.json() # Get full response
     except Exception as e:
-        data = {"youtube":[{"name":"추천 실패","url":str(e)}], "web":[]}
+        return [], f"API 호출 실패: {e}" # Return empty list and error message
+
+    recommendations = data.get("recommendations", {}).get("youtube", [])
+    summary_reason = data.get("recommendations", {}).get("summary_reason", "추천 사유를 생성하지 못했습니다.")
 
     rows = []
-    for c in data.get("youtube", []) + data.get("web", []):
-        # Add reason to the row and make URL clickable
+    for c in recommendations:
+        # Make URL clickable
         url_html = f'<a href="{c.get("url","")}" target="_blank">{c.get("url","")}</a>' if c.get("url") else ""
         rows.append([
             c.get("name",""),
-            url_html,
-            c.get("reason","") # Add reason here
+            url_html
         ])
     if not rows:
-        rows = [["추천 실패", "", ""]] # Update fallback for 3 columns
-    return rows
+        rows = [["추천 실패", ""]] # Update fallback for 2 columns
+    
+    return rows, summary_reason
 
 with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
     gr.Markdown('## PersonaMate Pro — OAuth 수집 + 추천 UI')
@@ -73,13 +76,15 @@ with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
                 label='MBTI'
             )
             # use_openai = gr.Checkbox(label='OpenAI 임베딩 사용', value=True) # Removed
-            run_btn = gr.Button('추천 실행', variant='primary')
+            run_btn = gr.Button('분석 & 추천 실행', variant='primary') # Changed button text
         with gr.Column(scale=3):
             gr.Markdown('### 4) 추천 결과')
-            result_table=gr.Dataframe(headers=["채널 이름","사이트 주소", "추천 사유"], row_count=10, col_count=3) # Updated headers and col_count
+            result_table=gr.Dataframe(headers=["채널 이름","사이트 주소"], row_count=10, col_count=2) # Reverted headers and col_count
+            gr.Markdown('### 5) 추천 사유') # Added new section for summary reason
+            summary_output = gr.Markdown(label="추천 사유 요약") # New component for summary reason
 
     fetch_btn.click(fetch_data_fn, inputs=[], outputs=[fetch_result])
-    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_table]) # Removed use_openai from inputs
+    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_table, summary_output]) # Updated outputs
 
 if __name__ == '__main__':
     demo.launch()
