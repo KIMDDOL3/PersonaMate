@@ -209,12 +209,13 @@ async def youtube_recommendations(request: RecommendationRequest):
     - 반드시 사용자의 구독 채널과 MBTI를 분석하여 새로운 채널을 제안해야 합니다.
     - 한국 채널을 최소 3개 이상 포함해야 합니다.
     - 추천 결과는 반드시 JSON 형식으로만 반환해야 합니다.
-    - 각 추천 항목은 채널 이름(name)과 채널 주소(url)만 포함해야 합니다.
+    - 각 추천 항목은 채널 이름(name), 채널 주소(url), 추천 사유(reason)만 포함해야 합니다.
+    - 추천 사유는 1~2문장으로 간결하게 작성해 주세요.
 
     {{
       "recommendations": {{
         "youtube": [
-          {{"name": "채널 이름", "url": "https://youtube.com/..."}}
+          {{"name": "채널 이름", "url": "https://youtube.com/...", "reason": "추천 사유"}}
         ]
       }}
     }}
@@ -222,7 +223,7 @@ async def youtube_recommendations(request: RecommendationRequest):
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.3,
+            "temperature": 0.7, # Increased temperature for more diverse recommendations
             "topK": 40,
             "topP": 0.8,
             "maxOutputTokens": 2048
@@ -253,7 +254,7 @@ async def youtube_recommendations(request: RecommendationRequest):
             # fallback: 구독 채널과 MBTI 기반 기본 추천 생성 (10개 유튜브)
             youtube_list = (request.youtube_subscriptions or ["기본채널"]) * 10
             youtube_fallback = [
-                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}"} 
+                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}", "reason": "API 응답 파싱 실패로 인한 기본 추천"} 
                 for i, ch in list(enumerate(youtube_list))[:10]
             ]
             result = {
