@@ -89,7 +89,7 @@ def save_recommendations(source: str, data: dict):
 SECRET_KEY = os.getenv("SECRET_KEY","changeme")
 SIGNER = URLSafeSerializer(SECRET_KEY)
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN","http://localhost:7860")
-app = FastAPI(root_path="/api") # Add root_path here
+app = FastAPI() # Removed root_path here
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'], allow_credentials=True)
 
 class RecommendationRequest(BaseModel):
