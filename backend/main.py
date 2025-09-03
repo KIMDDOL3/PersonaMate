@@ -24,41 +24,67 @@ USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
 conn = None
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS tokens (provider TEXT PRIMARY KEY, data TEXT)")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS recommendations (
-            id SERIAL PRIMARY KEY,
-            source TEXT,
-            data TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS tokens (provider TEXT PRIMARY KEY, data TEXT)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS recommendations (
+                id SERIAL PRIMARY KEY,
+                source TEXT,
+                data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        print("Database connection and table creation successful.")
+    except Exception as e:
+        print(f"Database connection or table creation failed: {e}")
 
 def save_token(provider: str, data: dict):
+    print(f"Attempting to save token for provider: {provider}")
     if not conn:
+        print("Database connection not established. Cannot save token.")
         return
-    cur = conn.cursor()
-    cur.execute("INSERT INTO tokens (provider, data) VALUES (%s, %s) ON CONFLICT (provider) DO UPDATE SET data = EXCLUDED.data", (provider, json.dumps(data)))
-    conn.commit()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO tokens (provider, data) VALUES (%s, %s) ON CONFLICT (provider) DO UPDATE SET data = EXCLUDED.data", (provider, json.dumps(data)))
+        conn.commit()
+        print(f"Token for {provider} saved successfully.")
+    except Exception as e:
+        print(f"Error saving token for {provider}: {e}")
 
 def load_token(provider: str):
+    print(f"Attempting to load token for provider: {provider}")
     if not conn:
+        print("Database connection not established. Cannot load token.")
         return None
-    cur = conn.cursor()
-    cur.execute("SELECT data FROM tokens WHERE provider=%s", (provider,))
-    row = cur.fetchone()
-    if not row: return None
-    return json.loads(row[0])
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT data FROM tokens WHERE provider=%s", (provider,))
+        row = cur.fetchone()
+        if not row:
+            print(f"No token found for {provider}.")
+            return None
+        token_data = json.loads(row[0])
+        print(f"Token for {provider} loaded successfully.")
+        return token_data
+    except Exception as e:
+        print(f"Error loading token for {provider}: {e}")
+        return None
 
 def save_recommendations(source: str, data: dict):
+    print(f"Attempting to save recommendations for source: {source}")
     if not conn:
+        print("Database connection not established. Cannot save recommendations.")
         return
-    cur = conn.cursor()
-    cur.execute("INSERT INTO recommendations (source, data) VALUES (%s, %s)", (source, json.dumps(data, ensure_ascii=False)))
-    conn.commit()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO recommendations (source, data) VALUES (%s, %s)", (source, json.dumps(data, ensure_ascii=False)))
+        conn.commit()
+        print(f"Recommendations for {source} saved successfully.")
+    except Exception as e:
+        print(f"Error saving recommendations for {source}: {e}")
 
 SECRET_KEY = os.getenv("SECRET_KEY","changeme")
 SIGNER = URLSafeSerializer(SECRET_KEY)
@@ -86,11 +112,13 @@ async def oauth_google_start():
         f"&access_type=offline"
         f"&prompt=consent"
     )
+    print(f"Redirecting to Google OAuth: {auth_url}")
     return RedirectResponse(auth_url)
 
 
 @app.get("/oauth/google/callback")
 async def oauth_google_callback(code: str):
+    print(f"Google OAuth callback received with code: {code}")
     client_id = os.getenv("GOOGLE_CLIENT_ID","")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET","")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI","http://localhost:9000/oauth/google/callback")
@@ -107,6 +135,7 @@ async def oauth_google_callback(code: str):
         resp.raise_for_status()
         token_data = resp.json()
         save_token("google", token_data)
+        print(f"Google OAuth token data: {token_data}")
         return {"status":"ok","token":token_data}
 
 
@@ -117,11 +146,14 @@ async def oauth_instagram_start():
 
 @app.get("/fetch_data")
 async def fetch_data():
+    print("Fetching data endpoint called.")
     token = load_token("google")
     if not token:
+        print("Google OAuth token not found in DB.")
         raise HTTPException(401,"Google OAuth token not found")
     creds = token.get("access_token")
     if not creds:
+        print("Access token missing from loaded token data.")
         raise HTTPException(401,"Access token missing")
 
     try:
@@ -147,7 +179,9 @@ async def fetch_data():
                 page_token = data.get("nextPageToken")
                 if not page_token:
                     break
+        print(f"Successfully fetched {len(subs)} YouTube subscriptions.")
     except Exception as e:
+        print(f"YouTube API error during fetch_data: {e}")
         raise HTTPException(500, f"YouTube API error: {e}")
 
     return {
@@ -159,8 +193,10 @@ async def fetch_data():
 
 @app.post("/youtube/recommendations")
 async def youtube_recommendations(request: RecommendationRequest):
+    print("YouTube recommendations endpoint called.")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
+        print("GEMINI_API_KEY is not set.")
         raise HTTPException(500, "GEMINI_API_KEY is not set")
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -200,6 +236,7 @@ async def youtube_recommendations(request: RecommendationRequest):
 
         text = raw.get("candidates",[{}])[0].get("content",{}).get("parts",[{}])[0].get("text","")
         if not text:
+            print("No text content received from Gemini API.")
             return {"recommendations":{"youtube":[]}}
 
         try:
@@ -210,7 +247,9 @@ async def youtube_recommendations(request: RecommendationRequest):
             if cleaned.startswith("```"):
                 cleaned = cleaned.strip("`").replace("json","",1).strip()
             result = json.loads(cleaned)
+            print("Gemini API response parsed successfully.")
         except Exception as e:
+            print(f"JSON parsing failed: {e}, Original text: {text}")
             # fallback: 구독 채널과 MBTI 기반 기본 추천 생성 (10개 유튜브)
             youtube_list = (request.youtube_subscriptions or ["기본채널"]) * 10
             youtube_fallback = [
