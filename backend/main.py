@@ -227,7 +227,7 @@ async def youtube_recommendations(request: RecommendationRequest):
             "temperature": 0.9, # Increased temperature for more diverse recommendations
             "topK": 40,
             "topP": 0.8,
-            "maxOutputTokens": 2048
+            "maxOutputTokens": 4096 # Increased maxOutputTokens
         }
     }
 
