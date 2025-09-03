@@ -32,23 +32,23 @@ async def run_recommendations(yt, sns, mbti): # Removed use_openai
             res.raise_for_status()
             data = res.json() # Get full response
     except Exception as e:
-        return [], f"API 호출 실패: {e}" # Return empty list and error message
+        return "<h3>추천 결과를 가져오는 데 실패했습니다.</h3>", f"API 호출 실패: {e}" # Return HTML error and text message
 
     recommendations = data.get("recommendations", {}).get("youtube", [])
     summary_reason = data.get("recommendations", {}).get("summary_reason", "추천 사유를 생성하지 못했습니다.")
 
-    rows = []
+    if not recommendations:
+        return "<h3>추천 결과가 없습니다.</h3>", summary_reason
+
+    # Create HTML table for recommendations
+    table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th></tr></thead><tbody>"
     for c in recommendations:
-        # Make URL clickable
-        url_html = f'<a href="{c.get("url","")}" target="_blank">{c.get("url","")}</a>' if c.get("url") else ""
-        rows.append([
-            c.get("name",""),
-            url_html
-        ])
-    if not rows:
-        rows = [["추천 실패", ""]] # Update fallback for 2 columns
+        url = c.get("url", "")
+        name = c.get("name", "")
+        table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td></tr>'
+    table_html += "</tbody></table>"
     
-    return rows, summary_reason
+    return table_html, summary_reason
 
 with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
     gr.Markdown('## PersonaMate Pro — OAuth 수집 + 추천 UI')
@@ -75,16 +75,15 @@ with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
                 value='ENFP',
                 label='MBTI'
             )
-            # use_openai = gr.Checkbox(label='OpenAI 임베딩 사용', value=True) # Removed
-            run_btn = gr.Button('분석 & 추천 실행', variant='primary') # Changed button text
+            run_btn = gr.Button('분석 & 추천 실행', variant='primary')
         with gr.Column(scale=3):
             gr.Markdown('### 4) 추천 결과')
-            result_table=gr.Dataframe(headers=["채널 이름","사이트 주소"], row_count=10, col_count=2) # Reverted headers and col_count
-            gr.Markdown('### 5) 추천 사유') # Added new section for summary reason
-            summary_output = gr.Markdown(label="추천 사유 요약") # New component for summary reason
+            result_html = gr.HTML(label="추천 결과") # Changed to HTML component
+            gr.Markdown('### 5) 추천 사유')
+            summary_output = gr.Markdown(label="추천 사유 요약")
 
     fetch_btn.click(fetch_data_fn, inputs=[], outputs=[fetch_result])
-    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_table, summary_output]) # Updated outputs
+    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_html, summary_output]) # Updated outputs
 
 if __name__ == '__main__':
     demo.launch()
