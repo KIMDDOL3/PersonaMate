@@ -8,7 +8,15 @@
   ],
   "routes": [
     {
-      "src": "/.*",
+      "src": "/oauth/.*",
+      "dest": "backend/main.py"
+    },
+    {
+      "src": "/fetch_data",
+      "dest": "backend/main.py"
+    },
+    {
+      "src": "/youtube/.*",
       "dest": "backend/main.py"
     }
   ]
