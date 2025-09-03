@@ -1,33 +1,38 @@
-import os, requests
+import os, json, requests
 import gradio as gr
 from dotenv import load_dotenv
+import httpx # Import httpx for async client
 
 # 환경 변수 로드 (backend/.env에는 Vercel 배포용 환경이 포함되어 있어야 합니다)
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"), override=True)
 
 # Vercel 배포된 백엔드 URL (GitHub Space Secrets에 BACKEND_URL 설정)
-BACKEND = os.getenv('BACKEND_URL', 'https://your-vercel-backend.vercel.app')
+BACKEND = os.getenv('BACKEND_URL', 'https://personamate-kimddols-projects.vercel.app') # Updated to fixed production domain
 
-def fetch_data_fn():
+async def fetch_data_fn(): # Made async
+    print("Fetching data endpoint called.")
     try:
-        res = requests.get(f"{BACKEND}/fetch_data", timeout=60)
-        res.raise_for_status()
-        return res.json()
+        async with httpx.AsyncClient() as client: # Use async client
+            res = await client.get(f"{BACKEND}/fetch_data", timeout=60)
+            res.raise_for_status()
+            return res.json()
     except Exception as e:
         return {"error": str(e)}
 
-def run_recommendations(yt, sns, mbti, use_openai):
+async def run_recommendations(yt, sns, mbti, use_openai): # Made async
+    print("YouTube recommendations endpoint called.")
     try:
         payload = {
             "youtube_subscriptions": [s.strip() for s in yt.splitlines() if s.strip()],
             "sns_keywords": [s.strip() for s in sns.splitlines() if s.strip()],
             "mbti": mbti
         }
-        res = requests.post(f"{BACKEND}/youtube/recommendations", json=payload, timeout=120)
-        res.raise_for_status()
-        data = res.json().get("recommendations", {})
+        async with httpx.AsyncClient() as client: # Use async client
+            res = await client.post(f"{BACKEND}/youtube/recommendations", json=payload, timeout=120)
+            res.raise_for_status()
+            data = res.json().get("recommendations", {})
     except Exception as e:
-        data = {"youtube": [{"name": "추천 실패", "url": str(e)}], "web": []}
+        data = {"youtube":[{"name":"추천 실패","url":str(e)}], "web":[]}
 
     rows = []
     for c in data.get("youtube", []) + data.get("web", []):
