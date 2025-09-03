@@ -208,15 +208,16 @@ async def youtube_recommendations(request: RecommendationRequest):
 
     위 정보를 바탕으로 사용자의 성향과 관심사에 맞는 새로운 유튜브 채널 10개를 추천해 주세요.
     - 추천 결과는 반드시 JSON 형식으로만 반환해야 합니다.
-    - 각 추천 항목은 채널 이름(name), 채널 주소(url), 추천 사유(reason)만 포함해야 합니다.
-    - 추천 사유는 1~2문장으로 간결하게 작성해 주세요.
+    - 각 추천 항목은 채널 이름(name), 채널 주소(url)만 포함해야 합니다.
+    - 전체 추천에 대한 요약 사유(summary_reason)를 1~2문장으로 간결하게 작성해 주세요.
     - 한국 채널을 최소 3개 이상 포함해야 합니다.
 
     {{
       "recommendations": {{
         "youtube": [
-          {{"name": "채널 이름", "url": "https://youtube.com/...", "reason": "추천 사유"}}
-        ]
+          {{"name": "채널 이름", "url": "https://youtube.com/..."}}
+        ],
+        "summary_reason": "전체 추천에 대한 요약 사유"
       }}
     }}
     """
@@ -238,7 +239,7 @@ async def youtube_recommendations(request: RecommendationRequest):
         text = raw.get("candidates",[{}])[0].get("content",{}).get("parts",[{}])[0].get("text","")
         if not text:
             print("No text content received from Gemini API.")
-            return {"recommendations":{"youtube":[]}}
+            return {"recommendations":{"youtube":[]}, "summary_reason": "Gemini API 응답 없음."}
 
         try:
             # JSON 블록만 정규식으로 추출
@@ -254,13 +255,14 @@ async def youtube_recommendations(request: RecommendationRequest):
             # fallback: 구독 채널과 MBTI 기반 기본 추천 생성 (10개 유튜브)
             youtube_list = (request.youtube_subscriptions or ["기본채널"]) * 10
             youtube_fallback = [
-                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}", "reason": "API 응답 파싱 실패로 인한 기본 추천"} 
+                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}"} 
                 for i, ch in list(enumerate(youtube_list))[:10]
             ]
             result = {
                 "recommendations":{
                     "youtube": youtube_fallback
                 },
+                "summary_reason": f"API 응답 파싱 실패: {e}",
                 "error":f"JSON 파싱 실패: {e}, 원본: {text}"
             }
 
