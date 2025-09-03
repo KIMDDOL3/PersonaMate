@@ -200,13 +200,14 @@ async def youtube_recommendations(request: RecommendationRequest):
         raise HTTPException(500, "GEMINI_API_KEY is not set")
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-    # 프롬프트에 구독 채널과 MBTI를 반영
+    # 프롬프트에 구독 채널, SNS 키워드, MBTI를 반영
     prompt = f"""
     사용자의 구독 채널: {', '.join(request.youtube_subscriptions)}
+    사용자의 SNS 키워드: {', '.join(request.sns_keywords)}
     사용자의 MBTI: {request.mbti}
 
     위 정보를 바탕으로 사용자의 성향과 관심사에 맞는 새로운 유튜브 채널 10개를 추천해 주세요.
-    - 반드시 사용자의 구독 채널과 MBTI를 분석하여 새로운 채널을 제안해야 합니다.
+    - 반드시 사용자의 구독 채널, SNS 키워드, MBTI를 분석하여 새로운 채널을 제안해야 합니다.
     - 한국 채널을 최소 3개 이상 포함해야 합니다.
     - 추천 결과는 반드시 JSON 형식으로만 반환해야 합니다.
     - 각 추천 항목은 채널 이름(name), 채널 주소(url), 추천 사유(reason)만 포함해야 합니다.
