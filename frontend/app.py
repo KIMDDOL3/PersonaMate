@@ -19,7 +19,7 @@ async def fetch_data_fn(): # Made async
     except Exception as e:
         return {"error": str(e)}
 
-async def run_recommendations(yt, sns, mbti, use_openai): # Made async
+async def run_recommendations(yt, sns, mbti): # Removed use_openai
     print("YouTube recommendations endpoint called.")
     try:
         payload = {
@@ -72,14 +72,14 @@ with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
                 value='ENFP',
                 label='MBTI'
             )
-            use_openai = gr.Checkbox(label='OpenAI 임베딩 사용', value=True)
+            # use_openai = gr.Checkbox(label='OpenAI 임베딩 사용', value=True) # Removed
             run_btn = gr.Button('추천 실행', variant='primary')
         with gr.Column(scale=3):
             gr.Markdown('### 4) 추천 결과')
             result_table=gr.Dataframe(headers=["채널 이름","사이트 주소", "추천 사유"], row_count=10, col_count=3) # Updated headers and col_count
 
     fetch_btn.click(fetch_data_fn, inputs=[], outputs=[fetch_result])
-    run_btn.click(run_recommendations, [yt_text, sns_text, mbti, use_openai], [result_table])
+    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_table]) # Removed use_openai from inputs
 
 if __name__ == '__main__':
     demo.launch()
