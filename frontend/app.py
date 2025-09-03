@@ -7,7 +7,7 @@ import httpx # Import httpx for async client
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"), override=True)
 
 # Vercel 배포된 백엔드 URL (GitHub Space Secrets에 BACKEND_URL 설정)
-BACKEND = os.getenv('BACKEND_URL', 'https://personamate-kimddols-projects.vercel.app') # Updated to fixed production domain
+BACKEND = os.getenv('BACKEND_URL', 'https://personamate.vercel.app') # Updated to fixed production domain
 
 async def fetch_data_fn(): # Made async
     print("Fetching data endpoint called.")

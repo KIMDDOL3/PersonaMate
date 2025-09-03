@@ -4,6 +4,10 @@
     {
       "src": "backend/main.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "frontend/app.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
@@ -18,6 +22,10 @@
     {
       "src": "/youtube/.*",
       "dest": "backend/main.py"
+    },
+    {
+      "src": "/.*",
+      "dest": "frontend/app.py"
     }
   ]
 }
