@@ -224,7 +224,7 @@ async def youtube_recommendations(request: RecommendationRequest):
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.8, # Increased temperature for more diverse recommendations
+            "temperature": 0.9, # Increased temperature for more diverse recommendations
             "topK": 40,
             "topP": 0.8,
             "maxOutputTokens": 2048
