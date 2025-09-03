@@ -207,11 +207,10 @@ async def youtube_recommendations(request: RecommendationRequest):
     사용자의 MBTI: {request.mbti}
 
     위 정보를 바탕으로 사용자의 성향과 관심사에 맞는 새로운 유튜브 채널 10개를 추천해 주세요.
-    - 반드시 사용자의 구독 채널, SNS 키워드, MBTI를 분석하여 새로운 채널을 제안해야 합니다.
-    - 한국 채널을 최소 3개 이상 포함해야 합니다.
     - 추천 결과는 반드시 JSON 형식으로만 반환해야 합니다.
     - 각 추천 항목은 채널 이름(name), 채널 주소(url), 추천 사유(reason)만 포함해야 합니다.
     - 추천 사유는 1~2문장으로 간결하게 작성해 주세요.
+    - 한국 채널을 최소 3개 이상 포함해야 합니다.
 
     {{
       "recommendations": {{
@@ -224,7 +223,7 @@ async def youtube_recommendations(request: RecommendationRequest):
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.7, # Increased temperature for more diverse recommendations
+            "temperature": 0.8, # Increased temperature for more diverse recommendations
             "topK": 40,
             "topP": 0.8,
             "maxOutputTokens": 2048
