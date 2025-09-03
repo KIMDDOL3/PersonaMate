@@ -36,9 +36,15 @@ async def run_recommendations(yt, sns, mbti, use_openai): # Made async
 
     rows = []
     for c in data.get("youtube", []) + data.get("web", []):
-        rows.append([c.get("name", ""), c.get("url", "")])
+        # Add reason to the row and make URL clickable
+        url_html = f'<a href="{c.get("url","")}" target="_blank">{c.get("url","")}</a>' if c.get("url") else ""
+        rows.append([
+            c.get("name",""),
+            url_html,
+            c.get("reason","") # Add reason here
+        ])
     if not rows:
-        rows = [["추천 실패", ""]]
+        rows = [["추천 실패", "", ""]] # Update fallback for 3 columns
     return rows
 
 with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
@@ -70,7 +76,7 @@ with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
             run_btn = gr.Button('추천 실행', variant='primary')
         with gr.Column(scale=3):
             gr.Markdown('### 4) 추천 결과')
-            result_table = gr.Dataframe(headers=["채널 이름", "사이트 주소"], row_count=10, col_count=2)
+            result_table=gr.Dataframe(headers=["채널 이름","사이트 주소", "추천 사유"], row_count=10, col_count=3) # Updated headers and col_count
 
     fetch_btn.click(fetch_data_fn, inputs=[], outputs=[fetch_result])
     run_btn.click(run_recommendations, [yt_text, sns_text, mbti, use_openai], [result_table])
