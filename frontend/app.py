@@ -41,11 +41,12 @@ async def run_recommendations(yt, sns, mbti): # Removed use_openai
         return "<h3>추천 결과가 없습니다.</h3>", summary_reason
 
     # Create HTML table for recommendations
-    table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th></tr></thead><tbody>"
+    table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th><th>추천 사유</th></tr></thead><tbody>"
     for c in recommendations:
         url = c.get("url", "")
         name = c.get("name", "")
-        table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td></tr>'
+        reason = c.get("reason", "")
+        table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td><td>{reason}</td></tr>'
     table_html += "</tbody></table>"
     
     return table_html, summary_reason
