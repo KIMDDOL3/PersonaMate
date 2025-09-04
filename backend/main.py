@@ -198,14 +198,14 @@ async def youtube_recommendations(request: RecommendationRequest):
 
     위 정보를 바탕으로 사용자의 성향과 관심사에 맞는 새로운 유튜브 채널 10개를 추천해 주세요.
     - 추천 결과는 반드시 JSON 형식으로만 반환해야 합니다.
-    - 각 추천 항목은 채널 이름(name), 정확한 채널 주소(url), 추천 사유(reason)를 포함해야 합니다.
+    - 각 추천 항목은 채널 이름(name)과 정확한 채널 주소(url)만 포함해야 합니다.
     - 전체 추천에 대한 요약 사유(summary_reason)를 3~5문장으로 상세하게 작성해 주세요.
     - 한국 채널을 최소 3개 이상 포함해야 합니다.
 
     {{
       "recommendations": {{
         "youtube": [
-          {{"name": "채널 이름", "url": "https://youtube.com/@channelhandle", "reason": "이 채널을 추천하는 상세한 이유입니다."}}
+          {{"name": "채널 이름", "url": "https://youtube.com/@channelhandle"}}
         ],
         "summary_reason": "전체 추천에 대한 요약 사유입니다. 사용자의 취향과 MBTI를 고려하여 종합적으로 분석한 결과입니다."
       }}
@@ -240,7 +240,7 @@ async def youtube_recommendations(request: RecommendationRequest):
         except Exception as e:
             youtube_list = (request.youtube_subscriptions or ["기본채널"]) * 10
             youtube_fallback = [
-                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}", "reason": "API 응답 파싱 실패"} 
+                {"name": f"{ch} 추천 채널 {i+1}", "url": f"http://youtube.com/{i+1}"} 
                 for i, ch in list(enumerate(youtube_list))[:10]
             ]
             result = {
@@ -260,9 +260,9 @@ async def export_html(request: ExportRequest):
     html_content = "<html><head><title>추천 결과</title></head><body>"
     html_content += "<h1>추천 결과</h1>"
     html_content += f"<p>{summary_reason}</p>"
-    html_content += "<table border='1'><tr><th>채널 이름</th><th>사이트 주소</th><th>추천 사유</th></tr>"
+    html_content += "<table border='1'><tr><th>채널 이름</th><th>사이트 주소</th></tr>"
     for item in recommendations:
-        html_content += f"<tr><td>{item.get('name', '')}</td><td><a href='{item.get('url', '')}'>{item.get('url', '')}</a></td><td>{item.get('reason', '')}</td></tr>"
+        html_content += f"<tr><td>{item.get('name', '')}</td><td><a href='{item.get('url', '')}'>{item.get('url', '')}</a></td></tr>"
     html_content += "</table></body></html>"
     
     file_path = f"/tmp/recommendations_{int(time.time())}.html"
@@ -297,8 +297,7 @@ async def export_pdf(request: ExportRequest):
     for item in recommendations:
         c.drawString(30, y, f"채널: {item.get('name', '')}")
         c.drawString(30, y - 15, f"주소: {item.get('url', '')}")
-        c.drawString(30, y - 30, f"사유: {item.get('reason', '')}")
-        y -= 50
+        y -= 40
         if y < 50:
             c.showPage()
             c.setFont('NanumGothic', 12) if 'NanumGothic' in pdfmetrics.getRegisteredFontNames() else c.setFont("Helvetica", 12)
@@ -323,9 +322,9 @@ async def send_email(request: EmailRequest):
     html_content = "<html><body>"
     html_content += "<h1>추천 결과</h1>"
     html_content += f"<p>{summary_reason}</p>"
-    html_content += "<table border='1'><tr><th>채널 이름</th><th>사이트 주소</th><th>추천 사유</th></tr>"
+    html_content += "<table border='1'><tr><th>채널 이름</th><th>사이트 주소</th></tr>"
     for item in recommendations:
-        html_content += f"<tr><td>{item.get('name', '')}</td><td><a href='{item.get('url', '')}'>{item.get('url', '')}</a></td><td>{item.get('reason', '')}</td></tr>"
+        html_content += f"<tr><td>{item.get('name', '')}</td><td><a href='{item.get('url', '')}'>{item.get('url', '')}</a></td></tr>"
     html_content += "</table></body></html>"
     
     try:

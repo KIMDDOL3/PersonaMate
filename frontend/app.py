@@ -40,12 +40,11 @@ async def run_recommendations(yt, sns, mbti):
     if not youtube_recs:
         return "<h3>추천 결과가 없습니다.</h3>", summary_reason, None
 
-    table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th><th>추천 사유</th></tr></thead><tbody>"
+    table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th></tr></thead><tbody>"
     for c in youtube_recs:
         url = c.get("url", "")
         name = c.get("name", "")
-        reason = c.get("reason", "")
-        table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td><td>{reason}</td></tr>'
+        table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td></tr>'
     table_html += "</tbody></table>"
     
     # Store the necessary data for export/email
