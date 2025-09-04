@@ -265,17 +265,19 @@ async def export_html(request: ExportRequest):
         html_content += f"<tr><td>{item.get('name', '')}</td><td><a href='{item.get('url', '')}'>{item.get('url', '')}</a></td><td>{item.get('reason', '')}</td></tr>"
     html_content += "</table></body></html>"
     
-    with open("recommendations.html", "w", encoding="utf-8") as f:
+    file_path = f"/tmp/recommendations_{int(time.time())}.html"
+    with open(file_path, "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    return FileResponse("recommendations.html", media_type='text/html', filename="recommendations.html")
+    return FileResponse(file_path, media_type='text/html', filename="recommendations.html")
 
 @app.post("/youtube/recommendations/export/pdf")
 async def export_pdf(request: ExportRequest):
     recommendations = request.recommendations.get("youtube", [])
     summary_reason = request.summary_reason
     
-    c = canvas.Canvas("recommendations.pdf", pagesize=A4)
+    file_path = f"/tmp/recommendations_{int(time.time())}.pdf"
+    c = canvas.Canvas(file_path, pagesize=A4)
     width, height = A4
     
     # Register a Korean font
@@ -303,7 +305,7 @@ async def export_pdf(request: ExportRequest):
             y = height - 50
             
     c.save()
-    return FileResponse("recommendations.pdf", media_type='application/pdf', filename="recommendations.pdf")
+    return FileResponse(file_path, media_type='application/pdf', filename="recommendations.pdf")
 
 @app.post("/youtube/recommendations/email")
 async def send_email(request: EmailRequest):
