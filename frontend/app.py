@@ -33,21 +33,28 @@ async def run_recommendations(yt, sns, mbti):
     except Exception as e:
         return "<h3>추천 결과를 가져오는 데 실패했습니다.</h3>", f"API 호출 실패: {e}", None
 
-    recommendations = data.get("recommendations", {}).get("youtube", [])
-    summary_reason = data.get("recommendations", {}).get("summary_reason", "추천 사유를 생성하지 못했습니다.")
+    recommendations_data = data.get("recommendations", {})
+    youtube_recs = recommendations_data.get("youtube", [])
+    summary_reason = recommendations_data.get("summary_reason", "추천 사유를 생성하지 못했습니다.")
 
-    if not recommendations:
+    if not youtube_recs:
         return "<h3>추천 결과가 없습니다.</h3>", summary_reason, None
 
     table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th><th>추천 사유</th></tr></thead><tbody>"
-    for c in recommendations:
+    for c in youtube_recs:
         url = c.get("url", "")
         name = c.get("name", "")
         reason = c.get("reason", "")
         table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td><td>{reason}</td></tr>'
     table_html += "</tbody></table>"
     
-    return table_html, summary_reason, data
+    # Store the necessary data for export/email
+    state_data = {
+        "recommendations": {"youtube": youtube_recs},
+        "summary_reason": summary_reason
+    }
+    
+    return table_html, summary_reason, state_data
 
 async def export_file(file_type, recommendations_state):
     if not recommendations_state:
@@ -55,11 +62,11 @@ async def export_file(file_type, recommendations_state):
         
     endpoint = f"{BACKEND}/youtube/recommendations/export/{file_type}"
     try:
+        # The payload is already in the correct format in recommendations_state
         async with httpx.AsyncClient() as client:
             res = await client.post(endpoint, json=recommendations_state, timeout=60)
             res.raise_for_status()
             
-            # Vercel의 임시 파일 경로에 저장
             file_path = f"/tmp/recommendations_{int(time.time())}.{file_type}"
             with open(file_path, "wb") as f:
                 f.write(res.content)
@@ -76,7 +83,8 @@ async def send_email_fn(recipient_email, recommendations_state):
     endpoint = f"{BACKEND}/youtube/recommendations/email"
     payload = {
         "recipient_email": recipient_email,
-        **recommendations_state
+        "recommendations": recommendations_state.get("recommendations", {}),
+        "summary_reason": recommendations_state.get("summary_reason", "")
     }
     try:
         async with httpx.AsyncClient() as client:
