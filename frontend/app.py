@@ -1,46 +1,44 @@
 import os, json, requests
 import gradio as gr
 from dotenv import load_dotenv
-import httpx # Import httpx for async client
+import httpx
+import time
 
-# 환경 변수 로드 (backend/.env에는 Vercel 배포용 환경이 포함되어 있어야 합니다)
+# 환경 변수 로드
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"), override=True)
 
-# Vercel 배포된 백엔드 URL (GitHub Space Secrets에 BACKEND_URL 설정)
-BACKEND = os.getenv('BACKEND_URL', 'https://personamate-kimddols-projects.vercel.app') # Updated to fixed production domain
+# Vercel 백엔드 URL
+BACKEND = os.getenv('BACKEND_URL', 'https://personamate-kimddols-projects.vercel.app')
 
-async def fetch_data_fn(): # Made async
-    print("Fetching data endpoint called.")
+async def fetch_data_fn():
     try:
-        async with httpx.AsyncClient() as client: # Use async client
+        async with httpx.AsyncClient() as client:
             res = await client.get(f"{BACKEND}/fetch_data", timeout=60)
             res.raise_for_status()
             return res.json()
     except Exception as e:
         return {"error": str(e)}
 
-async def run_recommendations(yt, sns, mbti): # Removed use_openai
-    print("YouTube recommendations endpoint called.")
+async def run_recommendations(yt, sns, mbti):
     try:
         payload = {
             "youtube_subscriptions": [s.strip() for s in yt.splitlines() if s.strip()],
             "sns_keywords": [s.strip() for s in sns.splitlines() if s.strip()],
             "mbti": mbti
         }
-        async with httpx.AsyncClient() as client: # Use async client
+        async with httpx.AsyncClient() as client:
             res = await client.post(f"{BACKEND}/youtube/recommendations", json=payload, timeout=120)
             res.raise_for_status()
-            data = res.json() # Get full response
+            data = res.json()
     except Exception as e:
-        return "<h3>추천 결과를 가져오는 데 실패했습니다.</h3>", f"API 호출 실패: {e}" # Return HTML error and text message
+        return "<h3>추천 결과를 가져오는 데 실패했습니다.</h3>", f"API 호출 실패: {e}", None
 
     recommendations = data.get("recommendations", {}).get("youtube", [])
     summary_reason = data.get("recommendations", {}).get("summary_reason", "추천 사유를 생성하지 못했습니다.")
 
     if not recommendations:
-        return "<h3>추천 결과가 없습니다.</h3>", summary_reason
+        return "<h3>추천 결과가 없습니다.</h3>", summary_reason, None
 
-    # Create HTML table for recommendations
     table_html = "<table><thead><tr><th>채널 이름</th><th>사이트 주소</th><th>추천 사유</th></tr></thead><tbody>"
     for c in recommendations:
         url = c.get("url", "")
@@ -49,22 +47,56 @@ async def run_recommendations(yt, sns, mbti): # Removed use_openai
         table_html += f'<tr><td>{name}</td><td><a href="{url}" target="_blank">{url}</a></td><td>{reason}</td></tr>'
     table_html += "</tbody></table>"
     
-    return table_html, summary_reason
+    return table_html, summary_reason, data
 
-with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
+async def export_file(file_type, recommendations_state):
+    if not recommendations_state:
+        return None, "먼저 추천을 실행해주세요."
+        
+    endpoint = f"{BACKEND}/youtube/recommendations/export/{file_type}"
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(endpoint, json=recommendations_state, timeout=60)
+            res.raise_for_status()
+            
+            # Vercel의 임시 파일 경로에 저장
+            file_path = f"/tmp/recommendations_{int(time.time())}.{file_type}"
+            with open(file_path, "wb") as f:
+                f.write(res.content)
+            return file_path, f"{file_type.upper()} 파일 생성 완료"
+    except Exception as e:
+        return None, f"파일 생성 실패: {e}"
+
+async def send_email_fn(recipient_email, recommendations_state):
+    if not recommendations_state:
+        return "먼저 추천을 실행해주세요."
+    if not recipient_email:
+        return "이메일 주소를 입력해주세요."
+
+    endpoint = f"{BACKEND}/youtube/recommendations/email"
+    payload = {
+        "recipient_email": recipient_email,
+        **recommendations_state
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(endpoint, json=payload, timeout=60)
+            res.raise_for_status()
+            return "이메일 전송 성공!"
+    except Exception as e:
+        return f"이메일 전송 실패: {e}"
+
+with gr.Blocks(title='PersonaMate Pro (OAuth + Simplified UI)') as demo:
+    recommendations_state = gr.State()
+
     gr.Markdown('## PersonaMate Pro — OAuth 수집 + 추천 UI')
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown('### 1) OAuth 로그인')
             gr.HTML(f'<a href="{BACKEND}/oauth/google/start" target="_blank">Google (YouTube) 로그인</a>')
-            gr.HTML(f'<a href="{BACKEND}/oauth/instagram/start" target="_blank">Instagram 로그인</a>')
-            gr.HTML(f'<a href="{BACKEND}/oauth/x/start" target="_blank">X 로그인</a>')
         with gr.Column(scale=2):
             gr.Markdown('### 2) 자동 수집')
-            yt_chk = gr.Checkbox(label='YouTube 구독 목록 사용', value=True)
-            ig_chk = gr.Checkbox(label='Instagram 해시태그 사용', value=False)
-            x_chk = gr.Checkbox(label='X 팔로잉 리스트 사용', value=False)
-            fetch_btn = gr.Button('데이터 수집')
+            fetch_btn = gr.Button('내 계정에서 데이터 수집')
             fetch_result = gr.JSON(label="수집된 데이터 미리보기")
     with gr.Row():
         with gr.Column(scale=1):
@@ -79,12 +111,27 @@ with gr.Blocks(title='PersonaMate Pro — OAuth 수집 + 추천 UI') as demo:
             run_btn = gr.Button('분석 & 추천 실행', variant='primary')
         with gr.Column(scale=3):
             gr.Markdown('### 4) 추천 결과')
-            result_html = gr.HTML(label="추천 결과") # Changed to HTML component
+            result_html = gr.HTML(label="추천 결과")
             gr.Markdown('### 5) 추천 사유')
             summary_output = gr.Markdown(label="추천 사유 요약")
+    with gr.Row():
+        gr.Markdown('### 6) 결과 저장 및 공유')
+    with gr.Row():
+        with gr.Column(scale=1):
+            html_btn = gr.Button("HTML 저장")
+            pdf_btn = gr.Button("PDF 저장")
+            download_file = gr.File(label="다운로드")
+        with gr.Column(scale=2):
+            email_input = gr.Textbox(label="이메일 주소", placeholder="결과를 받을 이메일을 입력하세요...")
+            email_btn = gr.Button("이메일로 보내기")
+            status_output = gr.Textbox(label="상태", interactive=False)
 
     fetch_btn.click(fetch_data_fn, inputs=[], outputs=[fetch_result])
-    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_html, summary_output]) # Updated outputs
+    run_btn.click(run_recommendations, [yt_text, sns_text, mbti], [result_html, summary_output, recommendations_state])
+    
+    html_btn.click(export_file, inputs=[gr.State("html"), recommendations_state], outputs=[download_file, status_output])
+    pdf_btn.click(export_file, inputs=[gr.State("pdf"), recommendations_state], outputs=[download_file, status_output])
+    email_btn.click(send_email_fn, inputs=[email_input, recommendations_state], outputs=[status_output])
 
 if __name__ == '__main__':
     demo.launch()
